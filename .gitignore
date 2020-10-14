@@ -22,4 +22,4 @@
 *.map
 *.swp
 .DS_Store
-board/*
+board/
