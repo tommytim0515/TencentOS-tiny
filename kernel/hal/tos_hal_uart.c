@@ -1,6 +1,7 @@
 #include "tos_k.h"
 #include "tos_hal.h"
 #include "stm32f1xx_hal.h"
+#include "stm32f1xx_it.h"
 #include "usart.h"
 
 __API__ int tos_hal_uart_init(hal_uart_t *uart, hal_uart_port_t port)
@@ -18,6 +19,7 @@ __API__ int tos_hal_uart_init(hal_uart_t *uart, hal_uart_port_t port)
     } else if (port == HAL_UART_PORT_3) {
         uart->private_uart = &huart3;
         MX_USART3_UART_Init();
+        HAL_UART_Receive_IT(&huart3, (uint8_t *)recv_buffer, sizeof(recv_buffer));
     }
 
     return 0;

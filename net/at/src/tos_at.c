@@ -290,29 +290,16 @@ __STATIC__ void at_parser(void *arg)
     at_echo_t *at_echo = K_NULL;
     at_event_t *at_event = K_NULL;
     at_cache_t *recv_cache = K_NULL;
-    uint8_t *recv_cache_buffer = K_NULL;
-    size_t recv_cache_size = 0;
+
     at_parse_status_t at_parse_status;
 
     recv_cache = &AT_AGENT->recv_cache;
-    recv_cache_buffer = recv_cache->buffer;
-    recv_cache_size = recv_cache->buffer_size;
 
     while (K_TRUE) {
-        tos_mutex_pend(&AT_AGENT->uart_rx_lock);
-        int ret = tos_hal_uart_read(&AT_AGENT->uart, recv_cache_buffer, recv_cache_size, 2000);
-        tos_mutex_post(&AT_AGENT->uart_rx_lock);
-        if (ret != 0) {
-            printf("reading error!\r\n");
-            printf("%s", recv_cache_buffer);
-            continue;
-        }
-        tos_chr_fifo_push(&AT_AGENT->uart_rx_fifo, recv_cache_buffer);
         at_parse_status = at_uart_line_parse();
 
         if (at_parse_status == AT_PARSE_STATUS_OVERFLOW) {
-            // tos_kprintln("AT parse overflow!");
-            printf("AT parse overflow!");
+            tos_kprintln("AT parse overflow!");
             continue;
         }
 
@@ -337,15 +324,13 @@ __STATIC__ void at_parser(void *arg)
         } else if (at_parse_status == AT_PARSE_STATUS_NEWLINE &&
                     at_echo->status == AT_ECHO_STATUS_NONE) {
             at_echo_status_set(at_echo);
-            printf("echo status set: %d\r\n", at_echo->status);
         }
 
         if (at_echo->buffer) {
             at_echo_buffer_copy(recv_cache, at_echo);
         }
 
-        // tos_kprintln("--->%s", recv_cache->buffer);
-        printf("--->%s", recv_cache->buffer);
+        tos_kprintln("--->%s", recv_cache->buffer);
     }
 }
 
@@ -879,7 +864,7 @@ __API__ int tos_at_init(hal_uart_port_t uart_port, at_event_t *event_table, size
         goto errout2;
     }
 
-    if (tos_sem_create(&AT_AGENT->uart_rx_sem, (k_sem_cnt_t)1u) != K_ERR_NONE) {
+    if (tos_sem_create(&AT_AGENT->uart_rx_sem, (k_sem_cnt_t)0u) != K_ERR_NONE) {
         goto errout3;
     }
 
@@ -890,21 +875,21 @@ __API__ int tos_at_init(hal_uart_port_t uart_port, at_event_t *event_table, size
     if (tos_mutex_create(&AT_AGENT->uart_tx_lock) != K_ERR_NONE) {
         goto errout5;
     }
-
-    if (tos_hal_uart_init(&AT_AGENT->uart, uart_port) != 0) {
-        goto errout7;
-    }
-
+    
     if (tos_task_create(&AT_AGENT->parser, "at_parser", at_parser,
                         K_NULL, AT_PARSER_TASK_PRIO, at_parser_task_stack,
                         AT_PARSER_TASK_STACK_SIZE, 0) != K_ERR_NONE) {
         goto errout6;
     }
 
+    if (tos_hal_uart_init(&AT_AGENT->uart, uart_port) != 0) {
+        goto errout7;
+    }    
+
     if (tos_mutex_create(&AT_AGENT->global_lock) != K_ERR_NONE) {
         goto errout8;
     }
-    
+
     return 0;
 
 errout8:
